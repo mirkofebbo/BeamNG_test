@@ -16,9 +16,9 @@ class App:
 
         # create BeamNG instance
         self.beamng = BeamNGpy('localhost', 64256, home='D:\\BeamNG', user='D:\\BeamNG_User')
-        self.vehicle = Vehicle('ego', model='etk800', color='Blue', license="connard")
+        self.vehicle = Vehicle('ego', model='etk800', color='Black', license="connard")
         self.scenario = Scenario('italy', 'demo_scenario')
-
+        #  ETK 800-Series 854 190d (A)
         # Simulation and AI status
         self.simulation_running = False
         self.ai_running = False
@@ -27,8 +27,28 @@ class App:
         self.electric = Electrics()
         
         # Create an MQTT client
+        self.client = None
+        self.setup_mqtt()  
+
+    def on_disconnect(self, client, userdata, rc):
+        print("Disconnected from MQTT server with code:", rc)
+        self.display_connection_status("MQTT Server Disconnected")
+
+    def setup_mqtt(self):
         self.client = mqtt.Client()
-        self.client.connect("158.223.43.7", 1883)
+        self.client.on_disconnect = self.on_disconnect
+        try:
+            self.client.connect("158.223.43.7", 1883, 60)
+        except Exception as e:
+            self.display_connection_status("MQTT Server Disconnected")
+            print(f"Could not connect to MQTT server: {e}")
+
+
+    def display_connection_status(self, message):
+        if hasattr(self, 'status_label'):
+            self.status_label.config(text=message)
+        else:
+            print("Status label not yet initialized.")
 
     def run_simulation(self, status_label, sim_button):
         try:
@@ -91,21 +111,26 @@ class App:
             print(f"Error controlling AI: {e}")
 
     def create_ui(self):
-        status_label = tk.Label(self.root, text="Press 'Start Simulation' to load.")
-        status_label.pack(pady=10)
+        self.status_label = tk.Label(self.root, text="Initializing...")
+        self.status_label.pack(pady=10)
 
-        sim_button = ttk.Button(self.root, text="Start Simulation", command=lambda: self.start_stop_simulation(status_label, sim_button))
+        sim_button = ttk.Button(self.root, text="Start Simulation",
+                                command=lambda: self.start_stop_simulation(self.status_label, sim_button))
         sim_button.pack(pady=10)
 
-        # Button to control AI
-        ai_button = ttk.Button(self.root, text="Start AI", command=lambda: self.ai_control(ai_button))
+        ai_button = ttk.Button(self.root, text="Start AI",
+                            command=lambda: self.ai_control(ai_button))
         ai_button.pack(pady=10)
 
-        # Button to reset the simulation
-        reset_button = ttk.Button(self.root, text="Reset Simulation", command=self.reset_simulation)
+        reset_button = ttk.Button(self.root, text="Reset Simulation",
+                                command=self.reset_simulation)
         reset_button.pack(pady=10)
 
-        self.root.mainloop()
+        # Initially check MQTT connection status
+        if self.client and self.client.is_connected():
+            self.display_connection_status("Connected to MQTT Server")
+        else:
+            self.display_connection_status("MQTT Server Disconnected")
 
     def reset_simulation(self):
         if self.simulation_running:
